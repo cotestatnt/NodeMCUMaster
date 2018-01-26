@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, user-scalable=no"/>
+  <title>Allarme - Tolentino Cotesta</title>
+  <link rel="stylesheet" href="bootstrap.css" type="text/css" />
+  <link rel="stylesheet" href="style.css" type="text/css" />
+  <link rel="stylesheet" href="pinstyle.css" type="text/css" />
+
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+  <script src="https://code.jquery.com/jquery-2.2.4.min.js" type="application/javascript"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js" type="application/javascript"></script>
+</head>
+
+<body id="body">
+  <main>
+    <!-- The Modal -->
+    <div id="myModal" class="modal">
+      <!-- Modal content -->
+      <div id="pin" class="modal-content">
+        <span class="close" style="align-self: right">&times;</span>
+        <div class="dots">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+        <p>Inserisci il PIN</p>
+        <div class="numbers">
+          <div class="number">1</div>
+          <div class="number">2</div>
+          <div class="number">3</div>
+          <div class="number">4</div>
+          <div class="number">5</div>
+          <div class="number">6</div>
+          <div class="number">7</div>
+          <div class="number">8</div>
+          <div class="number">9</div>
+          <div class="number">-</div>
+          <div class="number">0</div>
+          <div class="number">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="header clearfix">
+      <div id="meteo">
+        <legend id="serverDate">Smart Alarm v1.0        00:00:00<br></legend>
+      </div>
+    </div>
+    
+    <div class="row-4 col-12 cell">      
+        <div id="meteo-iframe" style="margin-top: -20px;" >
+          <!-- Inizio codice ilMeteo.it -->
+          <iframe width="460" height="300" scrolling="no" frameborder="no" noresize="noresize" src="http://www.ilmeteo.it/box/previsioni.php?citta=5913&type=day1&width=460&ico=1&lang=ita&days=6&font=Arial&fontsize=12&bg=FFFFFF&fg=000000&bgtitle=0099FF&fgtitle=FFFFFF&bgtab=F0F0F0&fglink=1773C2"></iframe>
+          <!-- Fine codice ilMeteo.it -->
+        </div>
+    </div>
+    
+    <div class="row-5 col-12 cell" >
+          <div id="calendar-iframe">
+            <!-- Inizio codice calendario -->
+            <iframe src="https://calendar.google.com/calendar/embed?showTitle=0&amp;showPrint=0&amp;showCalendars=0&amp;height=350&amp;wkst=2&amp;bgcolor=%23e0e0e0&amp;src=tolentino.cotesta%40gmail.com&amp;color=%232952A3&amp;ctz=Europe%2FRome" style="border-width:0" width="460" height="350" frameborder="0" scrolling="no"></iframe>
+            <!-- Fine codice calendario -->
+          </div>
+    </div>
+    
+    <div class="row-2 col-12 cell">
+      <div id="normal" style="display: block;margin-top: 10px;">
+        <label style="padding:0; font-size:18px">Gestione Allarme</label>
+        <table id="normalBox">
+          <tr>
+            <td>
+              <div class="buttons">
+                <button class="btn btn-primary" id="butAlarmOn" onclick="onBodyLoad()">Attiva</button>
+              </div>
+            </td>
+            <td>
+              <div class="buttons">
+                <button class="btn btn-primary" id="butTimer">Timer</button>
+              </div>
+            </td>
+            <td>
+              <div class="buttons">
+                <button class="btn btn-primary" id="butAlarmOff" disabled="true">Disattiva</button>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+      
+      <div id="alarmBox">
+        <div id="progressbar">
+          <div id="bar"></div>
+          <div id="labelProg">Sirena</div>
+        </div>
+        <div id="btnSilence">
+          <button class="btn btn-success" id="butAlarmReset" disabled="true">Tacita</button>
+        </div>
+      </div>
+      
+    </div>
+    
+    <div class="row-1 col-12 cell" >
+       <div class="gpio">
+          <div class="led-box">
+            <div id="ALARM_ON" class="led-orange-on"></div>
+            <p>Allarme</p>
+          </div>
+          <div class="led-box">
+            <div id="REED_IN" class="led-green-off"></div>
+            <p>Ingresso</p>
+          </div>
+          <div class="led-box">
+            <div id="HORN_ON" class="led-red-off"></div>
+            <p>Sirena (NC)</p>
+          </div>
+          <div class="led-box">
+            <div id="TEST" class="led-red-off" onclick="toggle(this)"></div>
+            <p>TEST</p>
+          </div>
+        </div>
+    </div>
+    
+    
+    <div class="row-1 col-12 cell">
+      <button class="sensors" id="sensor-1" onclick="longPressEvent(this)" >3.60V</button>
+      <button class="sensors" id="sensor-2" onclick="longPressEvent(this)" >3.60V</button>
+      <button class="sensors" id="sensor-3" onclick="longPressEvent(this)" >3.60V</button>
+      <button class="sensors" id="sensor-4" onclick="longPressEvent(this)" >3.60V</button>
+      <button class="sensors" id="sensor-5" onclick="longPressEvent(this)" >3.60V</button>
+      <button class="sensors" id="sensor-6" onclick="longPressEvent(this)" >3.60V</button>
+    </div>  
+    
+    
+    <div id="dialog-confirm" title="Gestione Allarme" style="display:none">
+      <p><b>DISATTIVA</b><br>Per reinserire il sistema sarà necessario premere il pulsante ATTIVA</p>
+      <p><b>RIATTIVA</b><br>L'allarme sarà riattivato trascorso il tempo definito dall'utente</p>
+      <p><b>ATTIVA TIMER</b><br>L'allarme sarà attivato nuovamente secondo la programamzione giornaliera impostata</p>
+    </div>
+    
+	  
+  </main>
+  <script src="functions.js"></script>
+  <script src="sha256.js"></script>
+
+</body>
+</html>
