@@ -1,3 +1,4 @@
+#include <Ticker.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <FS.h>
@@ -15,6 +16,13 @@
 #include <SHA256.h>
 #include <EEPROM.h>
 
+#define MAX_NODES 7
+#define TIMECHECK 30        // In seconds
+const byte ALARM_ON = D0;   // Led D5
+const byte HORN_ON = D1;    // Relay K2
+const byte REED_IN = 10;    // Reed sensor input (Pull-UP)
+const byte UsedPin[] = { REED_IN, HORN_ON, ALARM_ON };
+
 #define TINY_GSM_MODEM_A6
 #include <SoftwareSerial.h>
 SoftwareSerial SerialAT(D3, D2, false, 1024); // RX, TX
@@ -28,23 +36,16 @@ TinyGsm modem(SerialAT);
 #define CLEAR_BIT(value,bit)      ((value) &= ~BIT_MASK(bit))
 #define TEST_BIT(value,bit)       (((value) & BIT_MASK(bit)) ? 1 : 0)
 
-#define TIMECHECK 30               // In seconds
-
 const char* ssid = "***********";
 const char* password = "************";
 const char* hostName = "esp-async";
 String adminPswd = "admin";
 String adminPIN = "12345";
-String phoneNumber = "3934191877";
+String phoneNumber = "0123456789";
 
 enum payloadPointer { _NodeH = 0, _NodeL = 1, _Enabled = 2, _MsgType = 3, _Battery = 4, _DeviceNumber = 6};
 enum messageType {  SET_DISABLE = 100,  SET_ENABLE = 110,  SEND_ALIVE = 120,  SEND_ALARM = 199};
-
-const byte TEST = 14;       // Relay K1
-const byte ALARM_ON = D0;   // Led D5
-const byte HORN_ON = D1;    // Relay K2
-const byte REED_IN = 10;    // Reed sensor input (Pull-UP)
-const byte UsedPin[] = {REED_IN, HORN_ON, ALARM_ON, TEST};
+enum States { DISABLE = 0, ENABLE = 10, RUN = 11, PAUSE = 20, TIME = 30, ALARM = 99 } currentState;
 
 // Webservices
 AsyncWebServer server(80);
@@ -67,49 +68,19 @@ RF24 radio(D4, D8);				        // nRF24L01(+) radio attached
 RF24Network network(radio);       // Network uses that radio
 const uint16_t this_node = 00;    // Address of our node in Octal format
 
-struct Node {  
-  uint32_t timestamp;
-  uint16_t address;
-  uint16_t deviceId;    
-  uint16_t battery;   
-  uint8_t state; 
-};
-
-#define MAX_NODES 7
+struct Node { uint32_t timestamp; uint16_t address; uint16_t deviceId; uint16_t battery; uint8_t state; uint8_t zone; };
 Node nodes[MAX_NODES]; // Master always 0 + n nodes
 
 // Global variables
-String logMessage = "";
-uint16_t NewGPIO, OldGPIO = 0;
-uint8_t nodeNumber, actualNode, nodesOK, oldState, pauseSeconds = 0;
-uint32_t start_seconds, stop_seconds, timestamp, epochDay, actualTime = 0;
-uint32_t checkTime, pauseTime = 0;
-uint32_t updateTime, hornTime, smsLastTime, botLastTime, waitDial = millis();
-bool RisingEdge, Result, push = false;
+uint16_t NewGPIO, OldGPIO = 0;  
+String logMessage, phoneNumber1, phoneNumber2, pushDevId = "";
+uint8_t nodeNumber, oldState, pauseSeconds, hornSeconds = 0;
+uint32_t startZ1, stopZ1, startZ2, stopZ2, actualTime, secondsOfday = 0;
+uint32_t hornTime, pauseTime = 0;
+bool Push = false;
+bool firstTest = true;
 
-enum States { DISABLE = 0, ENABLE = 10, RUN = 11, PAUSE = 20, TIME = 30, ALARM = 99 } currentState;
-
-// Event Handler when an IP address has been assigned
-void onSTAGotIP(WiFiEventStationModeGotIP event) {
-  Serial.printf("IP address: %s\n", event.ip.toString().c_str());
-  NTP.init((char *)"pool.ntp.org", UTC0100);
-  NTP.setPollingInterval(5); // Poll first time with 1 second
-}
-
-// Event Handler when WiFi is disconnected
-void onSTADisconnected(WiFiEventStationModeDisconnected event) {
-  Serial.printf("WiFi connection (%s) dropped.\n", event.ssid.c_str());
-  Serial.printf("Reason: %d\n", event.reason);
-}
-
-// Interrupt service routine for REED_IN input
-void handleInterrupt() {
-  if (currentState != DISABLE) {
-    Serial.println("Interrupt");
-    currentState = ALARM;  
-    hornTime = millis() + 15000;
-  }
-}
+Ticker clientUpdater, SMSchecker, GPIOupdater;
 
 // ***************************************************************************************************** //
 // *****************************************    SETUP   ************************************************ //
@@ -117,14 +88,13 @@ void handleInterrupt() {
 void setup() {    
   static WiFiEventHandler gotIpEventHandler, disconnectedEventHandler;
   EEPROM.begin(128);
-  // Set encryption key  
-  myChiper.setKey(encryptKey, BLOCK_SIZE);
-  // Generate a random initialization vector and set it
+  
+  // Set encryption key and generate a random initialization vector and set it
+  myChiper.setKey(encryptKey, BLOCK_SIZE); 
   for (int i = 0 ; i < BLOCK_SIZE ; i++ ) 
     iv[i]= random(0xFF);
   myChiper.setIV(iv, BLOCK_SIZE);
   
-  pinMode(TEST, OUTPUT);
   pinMode(ALARM_ON, OUTPUT);
   pinMode(HORN_ON, OUTPUT);
   digitalWrite(HORN_ON, HIGH);
@@ -170,10 +140,8 @@ void setup() {
         delay(50);        
       }
       break;
-    }
-   
+    }   
   });
-
  
   gotIpEventHandler = WiFi.onStationModeGotIP(onSTAGotIP);
   disconnectedEventHandler = WiFi.onStationModeDisconnected(onSTADisconnected);
@@ -211,6 +179,11 @@ void setup() {
   
   // Set the last state before restart 
   currentState =  static_cast<States>(EEPROM.read(0));
+
+  // Start tickers (seconds, callback function)
+  clientUpdater.attach(1, updateNodes);
+  SMSchecker.attach(5, checkSMS);
+  GPIOupdater.attach(0.5, updateGPIO);
 }
 
 
@@ -218,36 +191,34 @@ void setup() {
 // *****************************************    LOOP   ************************************************* //
 // ***************************************************************************************************** //    
 void loop() { 
-
-  if(push){
+  //  if(currentState != oldState){  Serial.print(" ."); Serial.print(currentState);  oldState = currentState;  delay(500); }
+  
+  if(Push){
+    sendPushNotification();    
+    Serial.print("Call assigned number: ");
+    Serial.println(modem.callNumber(phoneNumber1));
     sendPushNotification();
-    push = false;
+    delay(5000);
+    Serial.print("Hang up:");
+    Serial.println(modem.callHangup());
+    Push = false;
   }
   
   while (SerialAT.available() > 0)
     Serial.write(SerialAT.read());  
   while (Serial.available() > 0) 
     SerialAT.write(Serial.read());
-  
-    
-  // Check if nRF24 data ssage is present
+      
+  // Check if nRF24 data message is present
   getRadioData();  
 
-//  if(currentState != oldState){
-//    Serial.print(" ."); Serial.print(currentState);
-//    oldState = currentState;
-//    delay(500);
-//  }
-  
-  switch (currentState) {
-  // Dummy replay (in order to put nodes in deep sleep);
+  switch (currentState) {  
   case DISABLE:
     digitalWrite(HORN_ON, HIGH);
     digitalWrite(ALARM_ON, HIGH);
     // Set all node to known state
-    for (byte i = 0; i < 7; i++) {
-      nodes[i].timestamp = actualTime;
-    }
+    for (byte i = 0; i < 7; i++)
+      nodes[i].timestamp = actualTime;    
     break;
 
   // Run alarm system
@@ -261,7 +232,7 @@ void loop() {
   // Wait for node alive messages and check nodes
   case RUN:  
     getRadioData();  
-    if (epochDay == stop_seconds) {
+    if (secondsOfday == stopZ1) {
       digitalWrite(HORN_ON, HIGH);
       digitalWrite(ALARM_ON, HIGH);
       currentState = TIME;
@@ -272,10 +243,10 @@ void loop() {
 
   // Only to store the actual status and use it after if restart
   case TIME:        
-    if (epochDay == start_seconds) {
+    if (secondsOfday == startZ1) {
       Serial.println("System ENABLED");
       currentState = ENABLE;
-      logMessage = "\nTime: " + String(epochDay) + " seconds\nStart: " + String(start_seconds) + " seconds\nStop: " + String(stop_seconds) + " seconds\n";
+      logMessage = "\nTime: " + String(secondsOfday) + " seconds\nStart: " + String(startZ1) + " seconds\nStop: " + String(stopZ1) + " seconds\n";
       Serial.println(logMessage);
     }
     break;
@@ -300,58 +271,16 @@ void loop() {
     }
     break;
   }
+ 
+}
 
 
-  getRadioData();
-    
-  // Check if new unread SMS is present
-  if (millis() - smsLastTime > 10000) {
-    //checkSMS(false);      
-    smsLastTime = millis();   
-  }
-
-  if ((digitalRead(TEST) == HIGH) && (!RisingEdge)) {
-    RisingEdge = true;		   
-    Serial.print("Call assigned number: ");
-    Serial.println(modem.callNumber("+393934191877"));
-    sendPushNotification();
-    waitDial = millis();    
-  }
-  if ((millis() - waitDial > 5000) && (RisingEdge)) {
-    RisingEdge = false;    
-    Serial.print("Hang up:");
-    Serial.println(modem.callHangup());
-  } 
-
-  // Update client about our status
-  if (millis() - checkTime > 1000) {    
-    if (timeStatus() == timeSet) 
-      actualTime = now() + UTC0100;         
-    else
-      actualTime++;
-    uint8_t h = (actualTime - 2208988800UL + UTC0100 % 86400L) / 3600;
-    uint8_t m = (actualTime - 2208988800UL + UTC0100 % 3600) / 60;
-    uint8_t s = (actualTime - 2208988800UL + UTC0100 % 60);    
-    epochDay = h + m + s;
-    
-    checkTime = millis();
-    char str[2];
-    sprintf(str, "%d", currentState);
-    sendDataWs((char *)"status", str);    
-    if(currentState != DISABLE)
-        CHECK_Nodes();
-  }
-  
-  // Read status of all used pins and store in NewGPIO var
-  NewGPIO = 0;
+void updateGPIO(){
+  // Read status of all used pins and store in NewGPIO var  
   for (byte i = 0; i < 16; i++)
     for (byte j = 0; j < sizeof(UsedPin); j++)
       if((UsedPin[j] == i)&&(digitalRead(i) == HIGH))
           SET_BIT(NewGPIO, i);
-  // Use virtual GPIO15 for REED_IN (Normal Closed)
-  if(digitalRead(REED_IN) == LOW)
-    SET_BIT(NewGPIO, 15);
-      
 
   // Check if some of pins has changed and sent message to clients
   if (NewGPIO != OldGPIO) {
@@ -364,36 +293,48 @@ void loop() {
   
 }
 
-
-
-bool firstTest = true;
-void CHECK_Nodes() {  
-  nodesOK = 0;
-  for (byte i = 0; i < 7; i++) {
-    uint32_t elapsedtime = actualTime - nodes[i].timestamp;         
-    if (elapsedtime <= TIMECHECK) 
-      nodesOK++;
-    else {
-      // if sensor is disabled dont't set alarm
-      if (nodes[i].state != 0) {
-        logMessage = "\nSensor " + String(nodes[i].address) + " not respond since " + String(elapsedtime) + " seconds";
-        Serial.println(logMessage);                
-        delay(1000);
-        hornTime = millis();
-        currentState = ALARM;
-      }     
+void updateNodes() {    
+  uint8_t nodesOK = 0;
+  // Update connected clients 
+  if (timeStatus() == timeSet) 
+    actualTime = now() + UTC0100;         
+  else
+    actualTime++;
+  uint8_t h = (actualTime - 2208988800UL + UTC0100 % 86400L) / 3600;
+  uint8_t m = (actualTime - 2208988800UL + UTC0100 % 3600) / 60;
+  uint8_t s = (actualTime - 2208988800UL + UTC0100 % 60);    
+  secondsOfday = h + m + s;  
+  char str[2];
+  sprintf(str, "%d", currentState);
+  sendDataWs((char *)"status", str);    
+  if(currentState != DISABLE){               
+    for (byte i = 0; i < 7; i++) {
+      uint32_t elapsedtime = actualTime - nodes[i].timestamp;         
+      if (elapsedtime <= TIMECHECK) 
+        nodesOK++;
+      else {
+        // if sensor is disabled dont't set alarm
+        if (nodes[i].state != 0) {
+          logMessage = "\nSensor " + String(nodes[i].address) + " not respond since " + String(elapsedtime) + " seconds";
+          Serial.println(logMessage);                
+          delay(1000);
+          hornTime = millis();
+          currentState = ALARM;
+        }     
+      }
     }
-
+    
+    // Something wrong -> set Alarm state
+    if ((nodesOK < nodeNumber)&!(firstTest)) {    
+      digitalWrite(ALARM_ON, LOW);
+      logMessage = "\nALARM! Sensors active " + String(nodesOK) + "/" + String(nodeNumber);
+      Serial.println(logMessage);
+      delay(200);
+      hornTime = millis();
+      currentState = ALARM;
+    }  
   }
-  // Something wrong -> set Alarm state
-  if ((nodesOK < nodeNumber)&!(firstTest)) {    
-    digitalWrite(ALARM_ON, LOW);
-    logMessage = "\nALARM! Sensors active " + String(nodesOK) + "/" + String(nodeNumber);
-    Serial.println(logMessage);
-    delay(200);
-    hornTime = millis();
-    currentState = ALARM;
-  }  
+  
 }
 
 // ***************************************************************************************************** //
@@ -425,7 +366,7 @@ void getRadioData(void) {
       if(fromNode != header.from_node){
         // Set all node to known state
         for (byte i = 0; i < 7; i++) 
-            nodes[i].timestamp = actualTime;              
+          nodes[i].timestamp = actualTime;              
         break;
       }
       uint16_t deviceId = (payload[_DeviceNumber] << 8) | payload[_DeviceNumber];
@@ -439,7 +380,7 @@ void getRadioData(void) {
     }    
     
     if (payload[_MsgType] == SEND_ALARM){
-     currentState = ALARM;
+      currentState = ALARM;
     }
 
   }
@@ -466,30 +407,9 @@ bool sendRadioData(uint16_t toNode) {
   return TxOK;
 }
 
-
-
-// Helper routine to dump a byte array as hex values to Serial.
-void printHex(byte *buffer, byte bufferSize) {
-  for (byte i = 0; i < bufferSize; i++) {
-    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
-    Serial.print(buffer[i], HEX);
-  }
-}
-
-
-// Helper routine to dump a byte array as dec values to Serial.
-void printDec(byte *buffer, byte bufferSize) {
-  for (byte i = 0; i < bufferSize; i++) {
-    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
-    Serial.print(buffer[i], DEC);
-  }
-}
-
-
 // ***************************************************************************************************** //
 // ***************************************    WebSocket    ********************************************* //
 // ***************************************************************************************************** //
-
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
   switch (type){
     case WS_EVT_CONNECT:
@@ -564,7 +484,7 @@ void processWsMsg(String msg) {
     int state = root["state"];
     digitalWrite(pin, state);
     Serial.printf("\nSet pin %s %u", pinName.c_str(), state);
-    push = true;
+    Push = true;
   }
   // Check if the PIN provided is correct
   else if (strcmp(command, "checkThisHash") == 0) {
@@ -635,11 +555,11 @@ void processWsMsg(String msg) {
   Serial.println(currentState);
   EEPROM.write(0, currentState);
   EEPROM.commit();
-
 }
 
+
 // ***************************************************************************************************** //
-//************************************  OTHER FUNCTION   *********************************************** //
+//************************************  OTHER FUNCTIONS  *********************************************** //
 // ***************************************************************************************************** //
 
 // Check if provided hash is correct (used for PIN)
@@ -663,15 +583,50 @@ bool hashThis( String data, String testHash) {
     return true;
   else
     return false;
-
 }
 
+// Interrupt service routine for REED_IN input
+void handleInterrupt() {
+  if (currentState != DISABLE) {
+    Serial.println("Interrupt");
+    currentState = ALARM;  
+    hornTime = millis() + 15000;
+  }
+}
+
+// Helper routine to dump a byte array as hex values to Serial.
+void printHex(byte *buffer, byte bufferSize) {
+  for (byte i = 0; i < bufferSize; i++) {
+    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+    Serial.print(buffer[i], HEX);
+  }
+}
+
+// Helper routine to dump a byte array as dec values to Serial.
+void printDec(byte *buffer, byte bufferSize) {
+  for (byte i = 0; i < bufferSize; i++) {
+    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+    Serial.print(buffer[i], DEC);
+  }
+}
 
 
 // ***************************************************************************************************** //
 //************************************  WIFI CONNECTION  *********************************************** //
 // ***************************************************************************************************** //
 
+// Event Handler when an IP address has been assigned
+void onSTAGotIP(WiFiEventStationModeGotIP event) {
+  Serial.printf("IP address: %s\n", event.ip.toString().c_str());
+  NTP.init((char *)"pool.ntp.org", UTC0100);
+  NTP.setPollingInterval(5); // Poll first time with 1 second
+}
+
+// Event Handler when WiFi is disconnected
+void onSTADisconnected(WiFiEventStationModeDisconnected event) {
+  Serial.printf("WiFi connection (%s) dropped.\n", event.ssid.c_str());
+  Serial.printf("Reason: %d\n", event.reason);
+}
 
 void switchtoAP(void) {
   Serial.print(F("Warning: Failed to load Wifi configuration.\nConnect to "));
@@ -707,13 +662,24 @@ bool loadWifiConf(void) {
   nodeNumber = json["nodeNumber"];  
   adminPswd = json["adminPswd"].as<String>();
   adminPIN = json["pin"].as<String>();
+  
+  json["phoneNumber1"].printTo(phoneNumber1);
+  json["phoneNumber2"].printTo(phoneNumber2);
+  json["pushDevId"].printTo(pushDevId);
+  pushDevId.replace("\"", "");
+  
+  String startTimeZ1, startTimeZ2, stopTimeZ1, stopTimeZ2 = "";
+  json["startTimeZ1"].printTo(startTimeZ1);
+  json["stopTimeZ1"].printTo(stopTimeZ1);
+  json["startTimeZ2"].printTo(startTimeZ2);
+  json["stopTimeZ2"].printTo(stopTimeZ2);
+  startZ1 = startTimeZ1.substring(1, 3).toInt() * 3600 + startTimeZ1.substring(4, 6).toInt() * 60;
+  stopZ1 = stopTimeZ1.substring(1, 3).toInt() * 3600 + stopTimeZ1.substring(4, 6).toInt() * 60;
+  startZ2 = startTimeZ2.substring(1, 3).toInt() * 3600 + startTimeZ2.substring(4, 6).toInt() * 60;
+  stopZ2 = stopTimeZ2.substring(1, 3).toInt() * 3600 + stopTimeZ2.substring(4, 6).toInt() * 60;
 
-  String startTime, stopTime = "";
-  json["startTime"].printTo(startTime);
-  json["stopTime"].printTo(stopTime);
-  start_seconds = startTime.substring(1, 3).toInt() * 3600 + startTime.substring(4, 6).toInt() * 60;
-  stop_seconds = stopTime.substring(1, 3).toInt() * 3600 + stopTime.substring(4, 6).toInt() * 60;
   pauseSeconds = json["pauseTime"];
+  hornSeconds = json["horseTime"];
  
   bool dhcp = json["dhcp"];    
   if (!dhcp) {
@@ -744,63 +710,8 @@ bool loadWifiConf(void) {
 // ***************************************************************************************************** //
 // *********************************  PUSHBULLET MESSAGES  ********************************************* //
 // ***************************************************************************************************** //
-/*
-#include <WiFiClientSecure.h>
-bool sendPushNotification(){    
-  //https://api.pushbullet.com/v2/pushes
-  const char* accessToken = "o.1LUPGrePzvWwaI4na3vMB4a65xOBM5BF";
-  const char* fingerprint = "E7:06:F1:30:B1:5F:25:72:00:4D:99:F0:ED:90:4D:F9:60:D3:FB:75";
-  const char* host = "api.pushbullet.com";  
-  const int httpsPort = 443;
-  // Use WiFiClientSecure class to create TLS connection
-  WiFiClientSecure client;
-  Serial.print("Connecting to ");  Serial.println(host);
-  if (!client.connect(host, httpsPort)) {
-    Serial.println("Connection failed");
-    return false;
-  }
-  if (client.verify(fingerprint, host)) 
-    Serial.println("Certificate matches");
-  else 
-    Serial.println("Certificate doesn't match");
 
-  String url = "/v2/pushes";
-  Serial.print("Requesting URL: "); Serial.println(url);
-  client.print(String("POST ") + url + " HTTP/1.1\r\n" +
-               "Host: " + host + "\r\n" +
-               "User-Agent: ESP8266\r\n" +
-               "Access-Token: " + accessToken + "\r\n" +
-               "Content-length: 114\r\n"
-               "Content-Type: application/json\r\n" +
-               "Connection: close\r\n\r\n" +
-               "{\"body\":\"L'allarme è stato attivato!\",\"title\":\"Allarme attivo.\",\"type\":\"note\"}"
-              );
-
-  Serial.println("Request sent");
-  while (client.connected()) {
-    String line = client.readStringUntil('\n');
-    if (line == "\r") {
-      Serial.println("Headers received");
-      break;
-    }
-  }
-  String line = client.readStringUntil('\n');
-  //  String line = client.readString(); // this line is good for debugging error messages more then a single line
-  if (line.startsWith("{\"active\":true")) 
-    Serial.println("esp8266/Arduino CI successfull!");
-  else 
-    Serial.println("esp8266/Arduino CI has failed");
-  Serial.println("Reply was:");  
-  Serial.println(line);
- 
-  return true;
-}
-*/
-
-
-
-bool sendPushNotification(){
-  String apiKey = "v26285C6F0009F89"; //DevID code
+bool sendPushNotification(){  
   const char* host = "api.pushingbox.com";      
   // Use WiFiClient class to create TCP connections
   WiFiClient client;
@@ -812,11 +723,11 @@ bool sendPushNotification(){
 
   time_t tm = NTP.getLastSync();
   char ore[9];        
-  char giorno[11];
+  char giorno[11];  
   snprintf(ore, sizeof(ore), "%02d:%02d:%02d", hour(tm), minute(tm), second(tm));
   snprintf(giorno, sizeof(giorno), "%02d/%02d/%04d", day(tm), month(tm), year(tm));    
   // We now create a URI for the request
-  String url = "/pushingbox?devid=";  url += apiKey;
+  String url = "/pushingbox?devid=";  url += pushDevId;
   url += "&time=";  url += ore;
   url += "&date=";  url += giorno;
     
@@ -824,7 +735,7 @@ bool sendPushNotification(){
   client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Connection: close\r\n\r\n");
   unsigned long timeout = millis();
   while (client.available() == 0) {
-    if (millis() - timeout > 3000) {
+    if (millis() - timeout > 5000) {
       Serial.println(">>> Client Timeout !");
       client.stop();
       return false;
@@ -840,16 +751,16 @@ bool sendPushNotification(){
 }
   
 
-/*
  
 // ***************************************************************************************************** //
 // *************************************  SMS MESSAGES  ************************************************ //
 // ***************************************************************************************************** //
-void checkSMS(bool deleteAfterRead) {
+void checkSMS() {
 	int unreadSMSLocs[30] = { 0 };
 	int unreadSMSNum = 0;
-	SMSmessage sms;
+//	SMSmessage sms; 
 
+  /*
 	// Get the memory locations of unread SMS messages.
 	unreadSMSNum = A6_GSM.getSMSLocs(unreadSMSLocs, 5);
 	for (int i = 0; i < unreadSMSNum; i++) {
@@ -864,7 +775,6 @@ void checkSMS(bool deleteAfterRead) {
 		if(deleteAfterRead)
 			A6_GSM.deleteSMS(i);
 	}
-	
+	*/
 }
 
-*/

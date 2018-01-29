@@ -44,13 +44,22 @@ function listCONF(obj) {
   
   document.getElementById('ssid').value = obj.ssid;
   document.getElementById('wifipass').value = obj.pswd;
-  document.getElementById('gpioStatus').value = obj.gpioStatus;
+  
   document.getElementById('nodeNumber').value = obj.nodeNumber;
-
-  document.getElementById('startTime').value = obj.startTime;
-  document.getElementById('stopTime').value = obj.stopTime;
+  document.getElementById('zone1').value = obj.zone1;
+  document.getElementById('zone2').value = obj.zone2;
+  document.getElementById('startTimeZ1').value = obj.startTimeZ1;
+  document.getElementById('stopTimeZ1').value = obj.stopTimeZ1;
+  document.getElementById('startTimeZ2').value = obj.startTimeZ2;
+  document.getElementById('stopTimeZ2').value = obj.stopTimeZ2;
+  
   document.getElementById('pauseTime').value = obj.pauseTime;
-
+  document.getElementById('hornTime').value = obj.hornTime;
+  
+  document.getElementById('phoneNumber1').value = obj.phoneNumber1;
+  document.getElementById('phoneNumber2').value = obj.phoneNumber2;
+  document.getElementById('pushDevId').value = obj.pushDevId;
+  
   var wifiSetup = !obj.dhcp;
   if (wifiSetup) {
     document.getElementById('wifiSetup').checked = true;
@@ -84,13 +93,21 @@ function saveConf() {
   datatosend.gateway = document.getElementById('gateway').value;
   datatosend.subnetmask = document.getElementById('subnetmask').value;
 
-  datatosend.gpioStatus = document.getElementById('gpioStatus').value;
   datatosend.nodeNumber = document.getElementById('nodeNumber').value;
-
-  datatosend.stopTime = document.getElementById('stopTime').value;
-  datatosend.startTime = document.getElementById('startTime').value;
+  datatosend.zone1 = document.getElementById('zone1').value;  
+  datatosend.zone2 = document.getElementById('zone2').value;  
+  datatosend.stopTimeZ1 = document.getElementById('stopTimeZ1').value;
+  datatosend.startTimeZ1 = document.getElementById('startTimeZ1').value;
+  datatosend.stopTimeZ2 = document.getElementById('stopTimeZ2').value;
+  datatosend.startTimeZ2 = document.getElementById('startTimeZ2').value;
+   
   datatosend.pauseTime = document.getElementById('pauseTime').value;
-
+  datatosend.hornTime = document.getElementById('hornTime').value;
+  
+  datatosend.phoneNumber1 = document.getElementById('phoneNumber1').value;
+  datatosend.phoneNumber2 = document.getElementById('phoneNumber2').value;
+  datatosend.pushDevId = document.getElementById('pushDevId').value;
+  
   console.log(JSON.stringify(datatosend));
   websock.send(JSON.stringify(datatosend));
 }

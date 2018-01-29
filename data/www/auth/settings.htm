@@ -24,19 +24,36 @@
       <div class="row">
         <div class="col-sm-6 col-sm-push-6">
           <fieldset>
+            
             <legend>Wi-Fi Client Settings</legend>
             <div class="row form-group">
               <label class="col-xs-3">SSID</label>
               <span class="col-xs-9">
-                <input class="form-control input-sm" style="display:inline;max-width:150px" id="ssid" type="text">
+                <input id="ssid" class="form-control input-sm" style="display:inline;max-width:150px" type="text">
               </span>
             </div>
+            
             <div class="row form-group">
               <label class="col-xs-3">Password</label>
               <span class="col-xs-9">
                 <input id="wifipass" style="max-width:150px" class="form-control input-sm" type="password" name="ap_passwd">
               </span>
             </div>
+			
+			      <legend>Admin</legend>
+            <div class="row form-group">
+              <label class="col-xs-3">Password</label>
+              <span class="col-xs-9">
+                <input id="adminPswd" style="max-width:150px" class="form-control input-sm" type="password">
+              </span>
+            </div>
+            <div class="row form-group">
+              <label class="col-xs-3">PIN</label>
+              <span class="col-xs-9">
+                <input id="pin" style="max-width:150px" class="form-control input-sm" type="password">
+              </span>
+            </div>
+			
             <div class="row form-group">
               <label class="col-xs-3">DHCP</label>
               <span class="col-xs-9">
@@ -50,24 +67,49 @@
                 <input id="ipAddress" style="max-width:150px" class="form-control input-sm" type="text" disabled="disabled">
               </span>
             </div>
+            
             <div class="row form-group">
               <label class="col-xs-3">Gateway</label>
               <span class="col-xs-9">
                 <input id="gateway" style="max-width:150px" class="form-control input-sm" type="text" disabled="disabled">
               </span>
             </div>
+            
             <div class="row form-group">
               <label class="col-xs-3">Submask</label>
               <span class="col-xs-9">
                 <input id="subnetmask" style="max-width:150px" class="form-control input-sm" type="text" disabled="disabled">
               </span>
             </div>
+            
+            <legend>Phone number & notification</legend>
+            <div class="row form-group">
+              <label class="col-xs-3">Phone 1</label>
+              <span class="col-xs-9">
+                <input id="phoneNumber1" class="form-control input-sm" style="display:inline;max-width:150px" type="text">
+              </span>
+            </div>
+            
+			      <div class="row form-group">
+              <label class="col-xs-3">Phone 2</label>
+              <span class="col-xs-9">
+                <input id="phoneNumber2" class="form-control input-sm" style="display:inline;max-width:150px" type="text">
+              </span>
+            </div>
+            
+			      <div class="row form-group">
+              <label class="col-xs-3">Pushingbox.com</label>
+              <span class="col-xs-9">
+                <input id="pushDevId" class="form-control input-sm" style="display:inline;max-width:150px" type="text">
+              </span>
+            </div>
 
           </fieldset>
-          <br>
         </div>
+        
         <div class="col-sm-6 col-sm-pull-6">
           <fieldset>
+            
             <legend>Wireless sensors</legend>
             <div class="row form-group">
               <label class="col-xs-3">Number</label>
@@ -82,63 +124,70 @@
                  </select>
               </span>
             </div>
+            
+			      <legend>Zone 1</legend>
             <div class="row form-group">
-              <label class="col-xs-3">Status</label>
+              <label class="col-xs-3">Sensors</label>
               <span class="col-xs-9">
-                 <select class="form-control input-sm" style="max-width:185px" id="gpioStatus">
-                    <option value="0">GPIO-0</option>
-                    <option value="2">GPIO-2</option>
-                    <option value="4">GPIO-4</option>
-                    <option value="5">GPIO-5</option>
-                    <option value="15">GPIO-15</option>
-                    <option selected="selected" value="16">GPIO-16</option>
-                 </select>
+                <input id="zone1" class="form-control input-sm" style="display:inline;max-width:150px" type="text">
               </span>
-            </div>
-            <legend>Admin</legend>
-            <div class="row form-group">
-              <label class="col-xs-3">Password</label>
-              <span class="col-xs-9">
-                <input id="adminPswd" style="max-width:150px" class="form-control input-sm" type="password">
-              </span>
-            </div>
-            <div class="row form-group">
-              <label class="col-xs-3">PIN</label>
-              <span class="col-xs-9">
-                <input id="pin" style="max-width:150px" class="form-control input-sm" type="password">
-              </span>
-            </div>
-
-            <br>
-            <legend>Set Timer</legend>
+            </div>   
+            
             <div class="row form-group">
               <label class="col-xs-5">Enable at time</label>
               <span class="col-xs-7">
-                <input id="startTime" style="max-width:100px" class="form-control input-sm" type="time" >
+                <input id="startTimeZ1" style="max-width:100px" class="form-control input-sm" type="time" >
               </span>
             </div>
+            
             <div class="row form-group">
               <label class="col-xs-5">Disable at time</label>
               <span class="col-xs-7">
-                <input id="stopTime" style="max-width:100px" class="form-control input-sm" type="time" >
+                <input id="stopTimeZ1" style="max-width:100px" class="form-control input-sm" type="time" >
               </span>
             </div>
+			
+			      <legend>Zone 2</legend>
             <div class="row form-group">
-              <label class="col-xs-5">Pause duration (seconds)</label>
+              <label class="col-xs-3">Sensors</label>
+              <span class="col-xs-9">
+                <input id="zone2" class="form-control input-sm" style="display:inline;max-width:150px" type="text">
+              </span>
+            </div>    
+            
+            <div class="row form-group">
+              <label class="col-xs-5">Enable at time</label>
+              <span class="col-xs-7">
+                <input id="startTimeZ2" style="max-width:100px" class="form-control input-sm" type="time" >
+              </span>
+            </div>
+            
+            <div class="row form-group">
+              <label class="col-xs-5">Disable at time</label>
+              <span class="col-xs-7">
+                <input id="stopTimeZ2" style="max-width:100px" class="form-control input-sm" type="time" >
+              </span>
+            </div>
+
+			      <legend>Alarm settings</legend>
+            <div class="row form-group">
+              <label class="col-xs-5">Pause duration</label>
               <span class="col-xs-7">
                 <input id="pauseTime"  min="10" max="600" step="5" value="30" style="max-width:100px" class="form-control input-sm" type="number" >
               </span>
             </div>
+            
             <div class="row form-group">
-              <label class="col-xs-5">Horn wait time (seconds)</label>
+              <label class="col-xs-5">Horn wait time</label>
               <span class="col-xs-7">
                 <input id="hornTime"  min="5" max="60" step="5" value="15" style="max-width:100px" class="form-control input-sm" type="number" >
               </span>
             </div>
-
           </fieldset>
+          
         </div>
       </div>
+      
       <div><button onclick="saveConf()" class="btn btn-success btn-md pull-right">Save & Reboot</button></div>
       <br>
     </div>

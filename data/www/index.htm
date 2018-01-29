@@ -4,16 +4,16 @@
   <meta http-equiv="Content-type" content="text/html; charset=utf-8">
   <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, user-scalable=no"/>
   <title>Allarme - Tolentino Cotesta</title>
-  <link rel="stylesheet" href="bootstrap.css" type="text/css" />
-  <link rel="stylesheet" href="style.css" type="text/css" />
-  <link rel="stylesheet" href="pinstyle.css" type="text/css" />
-
-  <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-  <script src="https://code.jquery.com/jquery-2.2.4.min.js" type="application/javascript"></script>
-  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js" type="application/javascript"></script>
+  <link rel="stylesheet" href="style.min.css" type="text/css" />
+  <style>
+    html {
+     -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+  
 </head>
 
-<body id="body">
+<body id="body" style="overflow: hidden;height: 100%;" onload="checkInternet()">
   <main>
     <!-- The Modal -->
     <div id="myModal" class="modal">
@@ -51,20 +51,18 @@
       </div>
     </div>
     
-    <div class="row-4 col-12 cell">      
-        <div id="meteo-iframe" style="margin-top: -20px;" >
-          <!-- Inizio codice ilMeteo.it -->
-          <iframe width="460" height="300" scrolling="no" frameborder="no" noresize="noresize" src="http://www.ilmeteo.it/box/previsioni.php?citta=5913&type=day1&width=460&ico=1&lang=ita&days=6&font=Arial&fontsize=12&bg=FFFFFF&fg=000000&bgtitle=0099FF&fgtitle=FFFFFF&bgtab=F0F0F0&fglink=1773C2"></iframe>
-          <!-- Fine codice ilMeteo.it -->
-        </div>
+    <div class="row-4 col-12 cell" style="height: 240px;">      
+      <div id="meteo-iframe" style="margin-top: -70px;" >
+        <iframe src="https://www.meteo.it/mymeteo/widget/public/it/widget_72h.shtml?i=58091&mt=1&r=12&f=Arial" width="90%" height="350px" frameborder="0" scrolling="no"></iframe>
+      </div>
     </div>
     
     <div class="row-5 col-12 cell" >
-          <div id="calendar-iframe">
-            <!-- Inizio codice calendario -->
-            <iframe src="https://calendar.google.com/calendar/embed?showTitle=0&amp;showPrint=0&amp;showCalendars=0&amp;height=350&amp;wkst=2&amp;bgcolor=%23e0e0e0&amp;src=tolentino.cotesta%40gmail.com&amp;color=%232952A3&amp;ctz=Europe%2FRome" style="border-width:0" width="460" height="350" frameborder="0" scrolling="no"></iframe>
-            <!-- Fine codice calendario -->
-          </div>
+      <div id="calendar-iframe">
+        <!-- Inizio codice calendario -->
+        <iframe src="https://calendar.google.com/calendar/embed?showTitle=0&amp;showNav=0&amp;showDate=0&amp;showPrint=0&amp;showTabs=0&amp;showCalendars=0&amp;showTz=0&amp;mode=AGENDA&amp;height=150&amp;wkst=2&amp;bgcolor=%23e0e0e0&amp;src=tolentino.cotesta%40gmail.com&amp;color=%235B123B&amp;ctz=Europe%2FRome" style="border-width:0" width="350" height="150" frameborder="0" scrolling="no"></iframe>
+        <!-- Fine codice calendario -->
+      </div>
     </div>
     
     <div class="row-2 col-12 cell">
@@ -143,7 +141,7 @@
     
 	  
   </main>
-  <script src="functions.js"></script>
+  <script src="functions.min.js"></script>
   <script src="sha256.js"></script>
 
 </body>
