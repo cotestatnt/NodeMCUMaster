@@ -1,6 +1,5 @@
 var websock;
 
-
 function staticWifi() {
   if (document.getElementById('wifiSetup').checked) {
     document.getElementById('ipAddress').disabled = false;
@@ -53,6 +52,11 @@ function listCONF(obj) {
   document.getElementById('startTimeZ2').value = obj.startTimeZ2;
   document.getElementById('stopTimeZ2').value = obj.stopTimeZ2;
   
+  document.getElementById('warning1').checked = obj.warning1;
+  document.getElementById('alarm1').checked = obj.alarm1;
+  document.getElementById('warning2').checked = obj.warning2;
+  document.getElementById('alarm2').checked = obj.alarm2;
+  
   document.getElementById('pauseTime').value = obj.pauseTime;
   document.getElementById('hornTime').value = obj.hornTime;
   
@@ -100,6 +104,11 @@ function saveConf() {
   datatosend.startTimeZ1 = document.getElementById('startTimeZ1').value;
   datatosend.stopTimeZ2 = document.getElementById('stopTimeZ2').value;
   datatosend.startTimeZ2 = document.getElementById('startTimeZ2').value;
+  
+  datatosend.warning1 = document.getElementById('warning1').checked;
+  datatosend.alarm1 = document.getElementById('alarm1').checked;
+  datatosend.warning2 = document.getElementById('warning2').checked;
+  datatosend.alarm2 = document.getElementById('alarm2').checked;
    
   datatosend.pauseTime = document.getElementById('pauseTime').value;
   datatosend.hornTime = document.getElementById('hornTime').value;
